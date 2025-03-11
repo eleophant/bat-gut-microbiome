@@ -8,8 +8,7 @@
 library(tidyverse)
 library(viridis)
 library(patchwork)
-library(ggmap)
-library(ggspatial)
+library(leaflet)
 library(sf)
 library(cowplot)
 library(phyloseq)
@@ -32,46 +31,61 @@ sites = bat_metadata |>
   rename(lat = X, lon = Y)
 sites = sites |> mutate(Y = lat, X = lon)
 
-## A. main map ----
-map = get_map(location = c(lon = mean(sites$lon), lat = mean(sites$lat)), zoom = 7, scale = 4, maptype = "satellite", source = "google")
+# _ North America ----
+# Toronto coordinates
+toronto_lat <- 43.6532
+toronto_lon <- -79.3832
 
-main_map <- ggmap(map) +
-  geom_point(data = sites, aes(x = lon, y = lat), color = "white", size = 3) +
-  geom_text(data = sites, aes(x = lon, y = lat, label = site), 
-            color = "white", size = 4.5,
-            hjust = ifelse(sites$site == "Dunnville", 0.65,
-                           ifelse(sites$site == "Wainfleet", 0, 0.5)),
-            #hjust = 0.5,
-            vjust = ifelse(sites$site == "Dunnville", -1.4, 
-                           ifelse(sites$site == "Wainfleet", 2, -1.5))) +  # add site names
-  geom_segment(aes(x = -81, xend = -79, y = 41.5, yend = 41.5), color = "white", size = 1) +  # scale bar
-  annotate("text", x = -80, y = 41.4, label = "200 km", color = "white", size = 4) +
-  annotation_north_arrow(
-    location = "br",  # bottom right corner
-    which_north = "true",  # true north
-    style = north_arrow_orienteering(line_width = 0, fill = c("white", "white"), text_size = 8, text_col = "white")) +
-  theme_minimal() +
-  labs(x = "Longitude", y = "Latitude")
+leaflet(options = leafletOptions(zoomControl = FALSE)) %>%
+  addProviderTiles(providers$Esri.WorldImagery) %>%  # Satellite imagery of North America
+  addCircleMarkers(lng = toronto_lon, lat = toronto_lat, 
+                   color = "white",  # Set the color of the circle marker to white
+                   fill = TRUE,      # Fill the circle
+                   fillColor = "white",  # Fill the circle with white
+                   fillOpacity = 1,  # Set full opacity for the circle
+                   radius = 6,       # Set the radius of the circle
+                   stroke = FALSE) |>    # Remove the border of the circle)
+  setView(lng = toronto_lon, lat = toronto_lat, zoom = 2.4)  # Set zoom level for North America
 
-main_map
 
-##  B. inset ----
-inset_satellite_map <- get_map(
-  location = c(lon = -95, lat = 40),  # center of North America
-  zoom = 3,                           # adjust zoom for North America
-  maptype = "satellite",
-  source = "google")
+# _ Ontario ----
 
-inset_map <- ggmap(inset_satellite_map) +
-  # add a circle for the study area
-  geom_path(data = data.frame(
-    x = -79 + 0.5 * cos(seq(0, 2 * pi, length.out = 100)),
-    y = 43.5 + 0.5 * sin(seq(0, 2 * pi, length.out = 100))
-  ), aes(x = x, y = y), color = "white", size = 2) +  # adjust size for circle appearance
-  theme_void()  # no axes or labels
-
-inset_map
-
+leaflet(data = sites, options = leafletOptions(zoomControl = FALSE)) %>%
+  addProviderTiles(providers$Esri.WorldImagery) %>%
+  
+  # add points for roost sites
+  addCircleMarkers(~lon, ~lat, label = ~site, color = "white", radius = 5) |> #, 
+  #labelOptions = labelOptions(noHide = TRUE, 
+  #direction = ~ifelse(site == "Dunnville", "bottom", "top"),
+  #textOnly = TRUE, 
+  #style = list("color" = "white", "font-size" = "16px"))) %>%
+  
+  # Add landmark labels
+  addLabelOnlyMarkers(lng = -79.3832, lat = 43.6532, label = "Toronto", 
+                      labelOptions = labelOptions(noHide = TRUE, direction = "center", 
+                                                  textOnly = TRUE, style = list("color" = "white", "font-size" = "16px"))) %>%
+  addLabelOnlyMarkers(lng = -78, lat = 43.7, label = "Lake Ontario", 
+                      labelOptions = labelOptions(noHide = TRUE, direction = "center", 
+                                                  textOnly = TRUE, style = list("color" = "white", "font-size" = "16px"))) %>%
+  addLabelOnlyMarkers(lng = -81.2, lat = 42.15, label = "Lake Erie", 
+                      labelOptions = labelOptions(noHide = TRUE, direction = "center", 
+                                                  textOnly = TRUE, style = list("color" = "white", "font-size" = "16px"))) %>%
+  addLabelOnlyMarkers(lng = -82.2, lat = 44.5, label = "Lake Huron", 
+                      labelOptions = labelOptions(noHide = TRUE, direction = "center", 
+                                                  textOnly = TRUE, style = list("color" = "white", "font-size" = "16px"))) %>%
+  
+  # add scale bar
+  addScaleBar(position = "bottomright", 
+              options = scaleBarOptions(imperial = FALSE, metric = TRUE, maxWidth = 200)) %>%
+  
+  # adjust color of the scale bar
+  htmlwidgets::onRender('
+    function(el, x) {
+      var scaleBar = document.querySelector(".leaflet-control-scale-line");
+      scaleBar.style.backgroundColor = "white";
+      scaleBar.style.borderColor = "white";
+    }
+  ')
 
 # 3. microbiomes ----
 ## A. rel ab bbb ----
