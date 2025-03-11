@@ -15,6 +15,7 @@ library(lme4)
 library(vegan)
 library(phyloseq)
 library(phyloseqCompanion)
+library(data.table)
 library(ggordiplots)
 library(metagMisc)
 library(microbiome)
@@ -53,18 +54,6 @@ str(webber_metadata$date) #date, format: "2023-06-05". Worked!
 bat_metadata = mcmaster_metadata |> 
   left_join(webber_metadata, by = c("mcmaster_sample_id", "date"))
 
-
-## _ create phyloseq ----
-otu = feature_table
-otu = otu_table(otu, taxa_are_rows = TRUE)
-tax = taxonomy_table |> column_to_rownames("...1") #set row names
-tax = tax_table(as.matrix(tax))
-samples = bat_metadata |> column_to_rownames("study_id")
-samples = sample_data(samples)
-
-webber_bats = phyloseq(otu, tax, samples)
-
-
 # _ alpha div data ----
 adiv = plot_richness(webber_bats, measures=c("Observed", "Chao1", "Shannon", "Simpson"), x = "site", color = "colony_size")
 
@@ -83,6 +72,16 @@ alphadiv$mcmaster_sample_id = as.numeric(alphadiv$mcmaster_sample_id)
 # merge to metadata
 bat_metadata = bat_metadata |> 
   left_join(alphadiv, by = "mcmaster_sample_id")
+
+## _ create phyloseq ----
+otu = feature_table
+otu = otu_table(otu, taxa_are_rows = TRUE)
+tax = taxonomy_table |> column_to_rownames("...1") #set row names
+tax = tax_table(as.matrix(tax))
+samples = bat_metadata |> column_to_rownames("study_id")
+samples = sample_data(samples)
+
+webber_bats = phyloseq(otu, tax, samples)
 
 # _ subset BBB and LBB ----
 bbb <- subset_samples(webber_bats, species == "EPFU")
