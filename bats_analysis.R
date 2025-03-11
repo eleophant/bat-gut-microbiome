@@ -17,7 +17,7 @@ library(phyloseq)
 library(phyloseqCompanion)
 library(data.table)
 library(ggordiplots)
-library(metagMisc)
+#library(metagMisc)
 library(microbiome)
 library(ecodist)
 library(fantaxtic)
@@ -33,13 +33,46 @@ feature_table = read_csv("feature_table.csv")
 taxonomy_table = read_csv("taxonomy_table.csv")
 mcmaster_metadata = read_csv("mcmaster_metadata.csv")
 webber_metadata = read_csv("webber_metadata.csv")
+kcg_bat = read_csv("seqtab_nochim_transposed_KCGbat-LR484_v4.csv")
 
 ## _ data cleanup ----
+# remove ASVs detected in negative controls
+kcg_bat |> 
+  filter(KCGneg > 0) |> 
+  #select(KCGneg) |> #7;8
+  pull("...1")
+
+# these ASVs were found in the negative control
+#7: [1] "CCTGTTTGCTCCCCACGCTTTCGAGCCTCAGTGTCAGTTACAGGCCAGAGAGCCGCTTTCGCCACCGGTGTTCCTCCATATATCTACGCATTTCACCGCTACACATGGAATTCCACTCTCCTCTCCTGCACTCAAGTCTACCAGTTTCCAATGCATACAATGGTTGAGCCACTGCCTTTTACACCAGACTTAATAAACCACCTGCGCTCGCTTTACGCCCAATAAATCCGGACAACGCTCGGGACCTACG"
+#8:[2] "CCTGTTTGCTCCCCACGCTTTCGAGCCTCAGCGTCAGTTACAGACCAGAGAGTCGCCTTCGCCACTGGTGTTCCTCCATATATCTACGCATTTCACCGCTACACATGGAATTCCACTCTCCTCTTCTGCACTCAAGTCTCCCAGTTTCCAATGACCCTCCCCGGTTGAGCCGGGGGCTTTCACATCAGACTTAAGAAACCGCCTGCGCTCGCTTTACGCCCAATAAATCCGGACAACGCTTGCCACCTACG"
+# remove count of 7 and 8 from respective ASVs in non-control samples
+
+# define the target row names and corresponding values to subtract
+subtract_values = tibble(
+  row_id = c(
+    "CCTGTTTGCTCCCCACGCTTTCGAGCCTCAGTGTCAGTTACAGGCCAGAGAGCCGCTTTCGCCACCGGTGTTCCTCCATATATCTACGCATTTCACCGCTACACATGGAATTCCACTCTCCTCTCCTGCACTCAAGTCTACCAGTTTCCAATGCATACAATGGTTGAGCCACTGCCTTTTACACCAGACTTAATAAACCACCTGCGCTCGCTTTACGCCCAATAAATCCGGACAACGCTCGGGACCTACG",
+    "CCTGTTTGCTCCCCACGCTTTCGAGCCTCAGCGTCAGTTACAGACCAGAGAGTCGCCTTCGCCACTGGTGTTCCTCCATATATCTACGCATTTCACCGCTACACATGGAATTCCACTCTCCTCTTCTGCACTCAAGTCTCCCAGTTTCCAATGACCCTCCCCGGTTGAGCCGGGGGCTTTCACATCAGACTTAAGAAACCGCCTGCGCTCGCTTTACGCCCAATAAATCCGGACAACGCTTGCCACCTACG"
+  ),
+  subtract_value = c(7, 8)
+)
+
+# perform subtraction
+feature_table = feature_table |> 
+  rename(row_id = ...1) |> 
+  left_join(subtract_values, by = "row_id") |> 
+  mutate(across(-c(row_id, subtract_value), ~ ifelse(!is.na(subtract_value), .x - subtract_value, .x))) |> 
+  mutate(across(-row_id, ~ pmax(.x, 0))) |>   # ensure no negative values
+  select(-subtract_value)  # remove the extra column
+
 # remove "KCGneg" column from feature_table and add rownames
 feature_table = feature_table |> 
   select(-KCGneg) |> 
-  column_to_rownames(var = "...1") #|> t() #to transpose (not needed anymore)
+  column_to_rownames(var = "row_id") #|> t() #to transpose (not needed anymore)
 
+# convert back to matrix
+#feature_table = column_to_rownames(feature_table, var = "row_id") |>  as.matrix()
+
+# _ format checks ----
 # check date format
 str(webber_metadata$date) #character
 str(mcmaster_metadata$date) #date, format: "2023-06-05"
@@ -53,6 +86,23 @@ str(webber_metadata$date) #date, format: "2023-06-05". Worked!
 # merge metadata
 bat_metadata = mcmaster_metadata |> 
   left_join(webber_metadata, by = c("mcmaster_sample_id", "date"))
+
+## _ create phyloseq ----
+otu = feature_table
+otu = otu_table(otu, taxa_are_rows = TRUE)
+tax = taxonomy_table |> column_to_rownames("...1") #set row names
+tax = tax_table(as.matrix(tax))
+samples = bat_metadata |> column_to_rownames("study_id")
+samples = sample_data(samples)
+
+webber_bats = phyloseq(otu, tax, samples)
+
+# _ subset BBB and LBB ----
+bbb <- subset_samples(webber_bats, species == "EPFU")
+lbb <- subset_samples(webber_bats, species == "MYLU")
+
+df_otus_bbb = otu.matrix(bbb)
+bbb_metadata = as.data.frame(as.matrix(sample_data(bbb)))
 
 # _ alpha div data ----
 adiv = plot_richness(webber_bats, measures=c("Observed", "Chao1", "Shannon", "Simpson"), x = "site", color = "colony_size")
@@ -73,23 +123,9 @@ alphadiv$mcmaster_sample_id = as.numeric(alphadiv$mcmaster_sample_id)
 bat_metadata = bat_metadata |> 
   left_join(alphadiv, by = "mcmaster_sample_id")
 
-## _ create phyloseq ----
-otu = feature_table
-otu = otu_table(otu, taxa_are_rows = TRUE)
-tax = taxonomy_table |> column_to_rownames("...1") #set row names
-tax = tax_table(as.matrix(tax))
-samples = bat_metadata |> column_to_rownames("study_id")
-samples = sample_data(samples)
-
-webber_bats = phyloseq(otu, tax, samples)
-
-# _ subset BBB and LBB ----
-bbb <- subset_samples(webber_bats, species == "EPFU")
-lbb <- subset_samples(webber_bats, species == "MYLU")
-
-df_otus_bbb = otu.matrix(bbb)
-bbb_metadata = as.data.frame(as.matrix(sample_data(bbb)))
-
+# subset metadata
+bbb_metadata = bat_metadata |> 
+  filter(species == "EPFU")
 
 ## descriptive stats ----
 
@@ -111,8 +147,8 @@ bat_metadata |> filter(species == "EPFU") |> group_by(age) |> summarise(n = n())
 bat_metadata |> filter(species == "MYLU") |> group_by(age) |> summarise(n = n()) #all 13 are adults
 
 # number of samples per colony size
-bat_metadata |> group_by(colony_size) |> summarise(n = n()) #large: 35; small: 31
-#there are 3 large colonies and 3 small colonies
+bat_metadata |> group_by(colony_size, roost_type, site, species) |> summarise(n = n()) #large: 35; small: 31
+#there are 3 large colonies and 3 small colonies; all large colonies are in buildings and 1/3 small colonies is in a box
 
 # number of samples per colony size per species
 bat_metadata |> filter(species == "EPFU") |> group_by(colony_size) |> summarise(n = n()) #large: 22; small: 31
