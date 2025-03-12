@@ -24,8 +24,12 @@ theme_set(theme_classic())
 load(file = "bats_analysis_2024_09_05.RData")
 
 # 2. map ----
+# generate df with site coordinates & correct Mt Pleasant
 sites = bat_metadata |> 
   select(site, X, Y) |> 
+  mutate( 
+    X = case_when(site == "Mount Pleasant" ~ 43.15694, TRUE ~ X),
+    Y = case_when(site == "Mount Pleasant" ~ 80.2575, TRUE ~ Y)) |> 
   mutate(Y = -Y) |> 
   mutate(site = as.factor(site)) |> 
   rename(lat = X, lon = Y)
@@ -33,11 +37,11 @@ sites = sites |> mutate(Y = lat, X = lon)
 
 # _ North America ----
 # Toronto coordinates
-toronto_lat <- 43.6532
-toronto_lon <- -79.3832
+toronto_lat = 43.6532
+toronto_lon = -79.3832
 
-leaflet(options = leafletOptions(zoomControl = FALSE)) %>%
-  addProviderTiles(providers$Esri.WorldImagery) %>%  # Satellite imagery of North America
+leaflet(options = leafletOptions(zoomControl = FALSE))  |>
+  addProviderTiles(providers$Esri.WorldImagery)  |>  # Satellite imagery of North America
   addCircleMarkers(lng = toronto_lon, lat = toronto_lat, 
                    color = "white",  # Set the color of the circle marker to white
                    fill = TRUE,      # Fill the circle
@@ -49,34 +53,33 @@ leaflet(options = leafletOptions(zoomControl = FALSE)) %>%
 
 
 # _ Ontario ----
-
-leaflet(data = sites, options = leafletOptions(zoomControl = FALSE)) %>%
-  addProviderTiles(providers$Esri.WorldImagery) %>%
+leaflet(data = sites, options = leafletOptions(zoomControl = FALSE))  |>
+  addProviderTiles(providers$Esri.WorldImagery)  |>
   
   # add points for roost sites
   addCircleMarkers(~lon, ~lat, label = ~site, color = "white", radius = 5) |> #, 
   #labelOptions = labelOptions(noHide = TRUE, 
   #direction = ~ifelse(site == "Dunnville", "bottom", "top"),
   #textOnly = TRUE, 
-  #style = list("color" = "white", "font-size" = "16px"))) %>%
+  #style = list("color" = "white", "font-size" = "16px")))  |>
   
   # Add landmark labels
   addLabelOnlyMarkers(lng = -79.3832, lat = 43.6532, label = "Toronto", 
                       labelOptions = labelOptions(noHide = TRUE, direction = "center", 
-                                                  textOnly = TRUE, style = list("color" = "white", "font-size" = "16px"))) %>%
+                                                  textOnly = TRUE, style = list("color" = "white", "font-size" = "16px")))  |> 
   addLabelOnlyMarkers(lng = -78, lat = 43.7, label = "Lake Ontario", 
                       labelOptions = labelOptions(noHide = TRUE, direction = "center", 
-                                                  textOnly = TRUE, style = list("color" = "white", "font-size" = "16px"))) %>%
+                                                  textOnly = TRUE, style = list("color" = "white", "font-size" = "16px")))  |>
   addLabelOnlyMarkers(lng = -81.2, lat = 42.15, label = "Lake Erie", 
                       labelOptions = labelOptions(noHide = TRUE, direction = "center", 
-                                                  textOnly = TRUE, style = list("color" = "white", "font-size" = "16px"))) %>%
+                                                  textOnly = TRUE, style = list("color" = "white", "font-size" = "16px")))  |>
   addLabelOnlyMarkers(lng = -82.2, lat = 44.5, label = "Lake Huron", 
                       labelOptions = labelOptions(noHide = TRUE, direction = "center", 
-                                                  textOnly = TRUE, style = list("color" = "white", "font-size" = "16px"))) %>%
+                                                  textOnly = TRUE, style = list("color" = "white", "font-size" = "16px")))  |>
   
   # add scale bar
   addScaleBar(position = "bottomright", 
-              options = scaleBarOptions(imperial = FALSE, metric = TRUE, maxWidth = 200)) %>%
+              options = scaleBarOptions(imperial = FALSE, metric = TRUE, maxWidth = 200))  |>
   
   # adjust color of the scale bar
   htmlwidgets::onRender('
