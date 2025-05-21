@@ -129,10 +129,9 @@ rda_scores_species_df = rda_scores_species_df |>
 # plot
 p_rda_species = ggplot(rda_scores_species_df, aes(x = CAP1, y = MDS1, colour = species)) +
   geom_point() +
-  theme(legend.text = element_text(face = "italic")) +
+  theme(legend.text = element_text(face = "italic", size = 11)) +
   ggtitle("C") +
   scale_colour_viridis_d(option = "viridis")
-
 
 ## D. rda site ----
 rda_bbb_site = capscale(formula = df_otus_bbb ~ site, data = bbb_metadata,  distance = "robust.aitchison", na.action = na.exclude)
@@ -146,7 +145,9 @@ rda_scores_site_df = rda_bbb_site |>
   left_join(bbb_metadata, by = "study_id")
 
 p_rda_site = ggplot(rda_scores_site_df, aes(x = CAP1, y = CAP2, colour = site)) +
-  geom_point() + ggtitle("D") +
+  geom_point() + 
+  theme(legend.text = element_text(size = 11)) +
+  ggtitle("D") +
   scale_colour_viridis_d(option = "plasma")
 
 ## E. all ----
